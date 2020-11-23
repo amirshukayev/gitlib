@@ -8,9 +8,9 @@ listReferences = runConduit $ sourceReferences .| sinkList
 
 resolveReference :: MonadGit r m => RefName -> m (Maybe (Oid r))
 resolveReference name = do
-  mref <- lookupReference name
-  maybe (return Nothing) referenceToOid mref
+    mref <- lookupReference name
+    maybe (return Nothing) referenceToOid mref
 
 referenceToOid :: MonadGit r m => RefTarget r -> m (Maybe (Oid r))
-referenceToOid (RefObj oid) = return $ Just oid
+referenceToOid (RefObj oid)       = return $ Just oid
 referenceToOid (RefSymbolic name) = resolveReference name

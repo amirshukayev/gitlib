@@ -7,18 +7,13 @@ import Data.Maybe
 import Git.Types
 import Prelude hiding (FilePath)
 
-listObjects ::
-  MonadGit r m =>
-  -- | A commit we may already have
-  Maybe (CommitOid r) ->
-  -- | The commit we need
-  CommitOid r ->
-  -- | Include commit trees also?
-  Bool ->
-  -- | All the objects in between
-  m [ObjectOid r]
+listObjects :: MonadGit r m
+            => Maybe (CommitOid r) -- ^ A commit we may already have
+            -> CommitOid r         -- ^ The commit we need
+            -> Bool                -- ^ Include commit trees also?
+            -> m [ObjectOid r]     -- ^ All the objects in between
 listObjects mhave need alsoTrees =
-  runConduit $ sourceObjects mhave need alsoTrees .| sinkList
+    runConduit $ sourceObjects mhave need alsoTrees .| sinkList
 
 traverseObjects :: MonadGit r m => (ObjectOid r -> m a) -> CommitOid r -> m [a]
 traverseObjects f need = mapM f =<< listObjects Nothing need False
@@ -31,22 +26,17 @@ traverseObjects_ = (void .) . traverseObjects
 --   Ordering is preserved.
 expandTreeObjects :: MonadGit r m => ConduitT (ObjectOid r) (ObjectOid r) m ()
 expandTreeObjects = awaitForever $ \obj -> case obj of
-  TreeObjOid toid -> do
-    yield $ TreeObjOid toid
-    tr <- lift $ lookupTree toid
-    sourceTreeEntries tr
-      .| awaitForever
-        ( \ent -> case ent of
-            (_, BlobEntry oid _) -> yield $ BlobObjOid oid
-            (_, TreeEntry oid) -> yield $ TreeObjOid oid
-            _ -> return ()
-        )
-  _ -> yield obj
+    TreeObjOid toid -> do
+        yield $ TreeObjOid toid
+        tr <- lift $ lookupTree toid
+        sourceTreeEntries tr
+            .| awaitForever (\ent -> case ent of
+                (_, BlobEntry oid _) -> yield $ BlobObjOid oid
+                (_, TreeEntry oid)   -> yield $ TreeObjOid oid
+                _ -> return ())
+    _ -> yield obj
 
-listAllObjects ::
-  MonadGit r m =>
-  Maybe (CommitOid r) ->
-  CommitOid r ->
-  m [ObjectOid r]
+listAllObjects :: MonadGit r m
+               => Maybe (CommitOid r) -> CommitOid r -> m [ObjectOid r]
 listAllObjects mhave need =
-  runConduit $ sourceObjects mhave need True .| expandTreeObjects .| sinkList
+    runConduit $ sourceObjects mhave need True .| expandTreeObjects .| sinkList
